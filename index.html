@@ -1,16 +1,11 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Teachable Machine Image Model</title>
+    <title>Teachable Machine WebSocket Debug</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Load TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-
-    <!-- Load Teachable Machine Image Library -->
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-
     <style>
       body {
         font-family: sans-serif;
@@ -23,42 +18,43 @@
     </style>
   </head>
   <body>
-    <h1>Teachable Machine Image Model</h1>
+    <h1>Teachable Machine WebSocket Debug</h1>
     <button type="button" onclick="init()">Start</button>
     <div id="webcam-container"></div>
     <div id="label-container"></div>
 
     <script type="text/javascript">
-      const URL = "https://teachablemachine.withgoogle.com/models/oW47Rvt5J/";
+      const URL = "https://teachablemachine.withgoogle.com/models/XG1ufb4W9/"; // Replace with your model URL if needed
       let model, webcam, labelContainer, maxPredictions;
       let socket;
 
       async function init() {
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
-
-        // Load model
         model = await tmImage.load(modelURL, metadataURL);
         maxPredictions = model.getTotalClasses();
 
-        // Setup webcam
         webcam = new tmImage.Webcam(200, 200, true);
         await webcam.setup();
         await webcam.play();
         window.requestAnimationFrame(loop);
 
-        // Add webcam to page
         document.getElementById("webcam-container").appendChild(webcam.canvas);
-
-        // Add label placeholders
         labelContainer = document.getElementById("label-container");
         for (let i = 0; i < maxPredictions; i++) {
           labelContainer.appendChild(document.createElement("div"));
         }
 
-        // Setup WebSocket
-        socket = new WebSocket("ws://localhost:8080");
-        socket.onopen = () => console.log("WebSocket connected to Processing");
+        // WebSocket setup on port 8090
+        socket = new WebSocket("ws://localhost:8090");
+        socket.onopen = () => {
+          console.log("✅ WebSocket connected to Processing");
+          alert("WebSocket connection established!");
+        };
+        socket.onerror = () => {
+          console.log("❌ WebSocket connection error");
+          alert("WebSocket connection FAILED. Is Processing running?");
+        };
       }
 
       async function loop() {
@@ -69,25 +65,31 @@
 
       async function predict() {
         const prediction = await model.predict(webcam.canvas);
-        let detected = prediction.find(p => p.className === "face" && p.probability > 0.9);
 
-        if (detected) {
-          socket.send('1');
-        } else {
-          socket.send('0');
+        // Determine most probable class index
+        let maxIndex = 0;
+        let maxProb = 0;
+        for (let i = 0; i < prediction.length; i++) {
+          if (prediction[i].probability > maxProb) {
+            maxProb = prediction[i].probability;
+            maxIndex = i;
+          }
         }
 
-        // Show labels
+        // Send class index to Processing
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(String(maxIndex));
+        }
+
+        // Display prediction probabilities
         for (let i = 0; i < maxPredictions; i++) {
           const classPrediction =
-            prediction[i].className +
-            ": " +
-            (prediction[i].probability * 100).toFixed(2) +
-            "%";
+            prediction[i].className + ": " + (prediction[i].probability * 100).toFixed(2) + "%";
           labelContainer.childNodes[i].innerHTML = classPrediction;
         }
       }
     </script>
   </body>
 </html>
+
 
