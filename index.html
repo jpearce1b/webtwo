@@ -4,11 +4,22 @@
     <title>Teachable Machine Image Model</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Load TensorFlow.js -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+    <!-- Load Teachable Machine Image Library -->
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
     <style>
-      body { font-family: sans-serif; text-align: center; padding: 2em; }
-      video { border-radius: 10px; }
+      body {
+        font-family: sans-serif;
+        text-align: center;
+        padding: 2em;
+      }
+      video {
+        border-radius: 10px;
+      }
     </style>
   </head>
   <body>
@@ -19,30 +30,35 @@
 
     <script type="text/javascript">
       const URL = "https://teachablemachine.withgoogle.com/models/2fWGg7H1U/";
-
       let model, webcam, labelContainer, maxPredictions;
+      let socket;
 
       async function init() {
         const modelURL = URL + "model.json";
         const metadataURL = URL + "metadata.json";
 
-        console.log("Loading model...");
+        // Load model
         model = await tmImage.load(modelURL, metadataURL);
-        console.log("Model loaded");
-
         maxPredictions = model.getTotalClasses();
 
+        // Setup webcam
         webcam = new tmImage.Webcam(200, 200, true);
         await webcam.setup();
         await webcam.play();
         window.requestAnimationFrame(loop);
 
+        // Add webcam to page
         document.getElementById("webcam-container").appendChild(webcam.canvas);
 
+        // Add label placeholders
         labelContainer = document.getElementById("label-container");
         for (let i = 0; i < maxPredictions; i++) {
           labelContainer.appendChild(document.createElement("div"));
         }
+
+        // Setup WebSocket
+        socket = new WebSocket("ws://localhost:8080");
+        socket.onopen = () => console.log("WebSocket connected to Processing");
       }
 
       async function loop() {
@@ -53,11 +69,25 @@
 
       async function predict() {
         const prediction = await model.predict(webcam.canvas);
+        let detected = prediction.find(p => p.className === "face" && p.probability > 0.9);
+
+        if (detected) {
+          socket.send('1');
+        } else {
+          socket.send('0');
+        }
+
+        // Show labels
         for (let i = 0; i < maxPredictions; i++) {
-          const classPrediction = prediction[i].className + ": " + (prediction[i].probability * 100).toFixed(2) + "%";
+          const classPrediction =
+            prediction[i].className +
+            ": " +
+            (prediction[i].probability * 100).toFixed(2) +
+            "%";
           labelContainer.childNodes[i].innerHTML = classPrediction;
         }
       }
     </script>
   </body>
 </html>
+
